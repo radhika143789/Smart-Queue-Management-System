@@ -1,6 +1,9 @@
 package com.smartqueue.queue.service;
 
+import com.smartqueue.common.enums.ErrorCode;
 import com.smartqueue.common.enums.TokenStatus;
+import com.smartqueue.common.event.QueueEvent;
+import com.smartqueue.common.exception.AppException;
 import com.smartqueue.queue.dto.CallNextResponse;
 import com.smartqueue.queue.dto.QueueStatusResponse;
 import com.smartqueue.queue.dto.TokenResponse;
@@ -21,6 +24,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
 @Service
@@ -43,12 +47,12 @@ public class QueueService {
     @Transactional
     public TokenResponse bookToken(Long serviceId, Long userId, String userEmail, String userPhone) {
         ServiceEntity service = serviceRepository.findByIdAndIsActiveTrue(serviceId)
-                .orElseThrow(() -> new RuntimeException("Service not found or inactive"));
+                .orElseThrow(() -> new AppException(ErrorCode.SERVICE_NOT_FOUND));
 
         Optional<TokenEntity> activeToken = tokenRepository.findByUserIdAndServiceIdAndStatusIn(
                 userId, serviceId, List.of(TokenStatus.WAITING, TokenStatus.CALLED, TokenStatus.SERVING));
         if (activeToken.isPresent()) {
-            throw new RuntimeException("ACTIVE_TOKEN_EXISTS");
+            throw new AppException(ErrorCode.ACTIVE_TOKEN_EXISTS);
         }
 
         int maxSeq = tokenRepository.findMaxSequenceForToday(serviceId);
@@ -73,17 +77,21 @@ public class QueueService {
                 .build();
         token = tokenRepository.save(token);
 
+        // Push to Redis ZSET — score = sequence so ZPOPMIN always gets the oldest token
         redisTemplate.opsForZSet().add(QUEUE_KEY_PREFIX + serviceId, String.valueOf(token.getId()), newSeq);
         redisTemplate.expire(QUEUE_KEY_PREFIX + serviceId, 24, TimeUnit.HOURS);
 
-        kafkaProducerService.publishEvent("token.booked", token);
+        // Build and publish typed QueueEvent (never pass raw entity to Kafka)
+        QueueEvent event = buildEvent("TOKEN_BOOKED", token, null, position, eta);
+        kafkaProducerService.publishEvent("token.booked", event);
 
         return mapToTokenResponse(token, position, eta);
     }
 
+    @Transactional(readOnly = true)
     public QueueStatusResponse getQueueStatus(Long serviceId, Long userId) {
         ServiceEntity service = serviceRepository.findByIdAndIsActiveTrue(serviceId)
-                .orElseThrow(() -> new RuntimeException("Service not found"));
+                .orElseThrow(() -> new AppException(ErrorCode.SERVICE_NOT_FOUND));
 
         Long queueSize = redisTemplate.opsForZSet().zCard(QUEUE_KEY_PREFIX + serviceId);
         int waiting = queueSize != null ? queueSize.intValue() : 0;
@@ -114,12 +122,12 @@ public class QueueService {
                 .build();
     }
 
+    @Transactional(readOnly = true)
     public TokenResponse getTokenDetails(Long tokenId, Long userId) {
         TokenEntity token = tokenRepository.findById(tokenId)
-                .orElseThrow(() -> new RuntimeException("Token not found"));
+                .orElseThrow(() -> new AppException(ErrorCode.TOKEN_NOT_FOUND));
         if (userId != null && !token.getUserId().equals(userId)) {
-            // Check roles later in controller, for now throw
-            throw new RuntimeException("Unauthorized");
+            throw new AppException(ErrorCode.FORBIDDEN);
         }
         
         Long rank = redisTemplate.opsForZSet().rank(QUEUE_KEY_PREFIX + token.getService().getId(), String.valueOf(tokenId));
@@ -132,21 +140,23 @@ public class QueueService {
     @Transactional
     public TokenResponse cancelToken(Long tokenId, Long userId) {
         TokenEntity token = tokenRepository.findById(tokenId)
-                .orElseThrow(() -> new RuntimeException("Token not found"));
+                .orElseThrow(() -> new AppException(ErrorCode.TOKEN_NOT_FOUND));
         if (!token.getUserId().equals(userId)) {
-            throw new RuntimeException("Unauthorized");
+            throw new AppException(ErrorCode.FORBIDDEN);
         }
         if (token.getStatus() != TokenStatus.WAITING) {
-            throw new RuntimeException("Cannot cancel token not in WAITING state");
+            throw new AppException(ErrorCode.INVALID_TOKEN_OPERATION,
+                    "Only WAITING tokens can be cancelled. Current status: " + token.getStatus());
         }
-        
+
         token.setStatus(TokenStatus.CANCELLED);
         tokenRepository.save(token);
-        
+
         redisTemplate.opsForZSet().remove(QUEUE_KEY_PREFIX + token.getService().getId(), String.valueOf(tokenId));
-        
-        kafkaProducerService.publishEvent("token.cancelled", token);
-        
+
+        QueueEvent event = buildEvent("TOKEN_CANCELLED", token, null, 0, 0);
+        kafkaProducerService.publishEvent("token.cancelled", event);
+
         return mapToTokenResponse(token, 0, 0);
     }
 
@@ -154,28 +164,29 @@ public class QueueService {
     public CallNextResponse callNextToken(Long serviceId, Long counterId, Long staffUserId) {
         Set<ZSetOperations.TypedTuple<String>> tops = redisTemplate.opsForZSet().popMin(QUEUE_KEY_PREFIX + serviceId, 1);
         if (tops == null || tops.isEmpty()) {
-            throw new RuntimeException("Queue is empty");
+            throw new AppException(ErrorCode.QUEUE_CLOSED, "No tokens waiting in queue");
         }
-        
+
         String tokenIdStr = tops.iterator().next().getValue();
         TokenEntity token = tokenRepository.findById(Long.valueOf(tokenIdStr))
-                .orElseThrow(() -> new RuntimeException("Token not found"));
-                
+                .orElseThrow(() -> new AppException(ErrorCode.TOKEN_NOT_FOUND));
+
         CounterEntity counter = counterRepository.findById(counterId)
-                .orElseThrow(() -> new RuntimeException("Counter not found"));
-                
+                .orElseThrow(() -> new AppException(ErrorCode.RESOURCE_NOT_FOUND, "Counter not found: " + counterId));
+
         token.setStatus(TokenStatus.CALLED);
         token.setCounter(counter);
         token.setCalledAt(Instant.now());
         tokenRepository.save(token);
-        
+
         redisTemplate.opsForValue().set(CURRENT_KEY_PREFIX + serviceId, token.getTokenNumber(), 1, TimeUnit.HOURS);
-        
+
         Long remaining = redisTemplate.opsForZSet().zCard(QUEUE_KEY_PREFIX + serviceId);
-        
-        kafkaProducerService.publishEvent("token.called", token);
-        sseEmitterService.broadcastQueueUpdate(serviceId, "Called " + token.getTokenNumber());
-        
+
+        QueueEvent event = buildEvent("TOKEN_CALLED", token, counter.getName(), 0, 0);
+        kafkaProducerService.publishEvent("token.called", event);
+        sseEmitterService.broadcastQueueUpdate(serviceId, event);
+
         return CallNextResponse.builder()
                 .calledTokenNumber(token.getTokenNumber())
                 .userId(token.getUserId())
@@ -187,36 +198,71 @@ public class QueueService {
     @Transactional
     public TokenResponse completeToken(Long tokenId, Long staffUserId) {
         TokenEntity token = tokenRepository.findById(tokenId)
-                .orElseThrow(() -> new RuntimeException("Token not found"));
+                .orElseThrow(() -> new AppException(ErrorCode.TOKEN_NOT_FOUND));
         if (token.getStatus() != TokenStatus.SERVING && token.getStatus() != TokenStatus.CALLED) {
-            throw new RuntimeException("Token is not CALLED or SERVING");
+            throw new AppException(ErrorCode.INVALID_TOKEN_OPERATION,
+                    "Token must be in CALLED or SERVING state to complete. Current: " + token.getStatus());
         }
-        
+
         token.setStatus(TokenStatus.COMPLETED);
         token.setCompletedAt(Instant.now());
-        
+
         if (token.getCalledAt() != null) {
             int duration = (int) (token.getCompletedAt().getEpochSecond() - token.getCalledAt().getEpochSecond());
             token.setActualWaitSeconds(duration);
             etaCalculationService.updateRollingAvgServiceTime(token.getService(), duration);
         }
-        
+
         tokenRepository.save(token);
-        kafkaProducerService.publishEvent("token.completed", token);
-        
+
+        QueueEvent event = buildEvent("TOKEN_COMPLETED", token, null, 0, 0);
+        kafkaProducerService.publishEvent("token.completed", event);
+
         return mapToTokenResponse(token, 0, 0);
     }
 
     @Transactional
     public TokenResponse markNoShow(Long tokenId) {
         TokenEntity token = tokenRepository.findById(tokenId)
-                .orElseThrow(() -> new RuntimeException("Token not found"));
-        
+                .orElseThrow(() -> new AppException(ErrorCode.TOKEN_NOT_FOUND));
+
         token.setStatus(TokenStatus.NO_SHOW);
         tokenRepository.save(token);
-        kafkaProducerService.publishEvent("token.cancelled", token);
-        
+
+        // NO_SHOW has its own semantic — publish to token.cancelled so notification
+        // service can send the same cancellation-style message
+        QueueEvent event = buildEvent("TOKEN_CANCELLED", token, null, 0, 0);
+        kafkaProducerService.publishEvent("token.cancelled", event);
+
         return mapToTokenResponse(token, 0, 0);
+    }
+
+    // -----------------------------------------------------------------------
+    // Private helpers
+    // -----------------------------------------------------------------------
+
+    /**
+     * Build a typed QueueEvent from a TokenEntity. Always use this instead of
+     * passing raw entities to Kafka — keeps inter-service contract explicit.
+     */
+    private QueueEvent buildEvent(String type, TokenEntity token, String counterName, int position, int etaSeconds) {
+        return QueueEvent.builder()
+                .eventId(UUID.randomUUID().toString())
+                .eventType(type)
+                .tokenId(token.getId())
+                .tokenNumber(token.getTokenNumber())
+                .serviceId(token.getService().getId())
+                .serviceName(token.getService().getName())
+                .userId(token.getUserId())
+                .userEmail(token.getUserEmail())
+                .userPhone(token.getUserPhone())
+                .oldStatus(null)
+                .newStatus(token.getStatus())
+                .queuePosition(position)
+                .estimatedWaitSeconds(etaSeconds)
+                .counterName(counterName)
+                .occurredAt(Instant.now())
+                .build();
     }
 
     private TokenResponse mapToTokenResponse(TokenEntity token, int position, int etaSeconds) {

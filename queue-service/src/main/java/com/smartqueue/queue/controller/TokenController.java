@@ -32,7 +32,7 @@ public class TokenController {
         
         TokenResponse response = queueService.bookToken(serviceId, userId, userEmail, request.getUserPhone());
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(ApiResponse.success(response, "Token booked successfully"));
+                .body(ApiResponse.success("Token booked successfully", response));
     }
 
     @GetMapping("/queues/{serviceId}/status")
@@ -41,14 +41,14 @@ public class TokenController {
             @RequestHeader(value = "X-User-Id", required = false) Long userId) {
         
         QueueStatusResponse response = queueService.getQueueStatus(serviceId, userId);
-        return ResponseEntity.ok(ApiResponse.success(response, "Queue status fetched"));
+        return ResponseEntity.ok(ApiResponse.success("Queue status fetched", response));
     }
 
     @GetMapping("/queues/{serviceId}/current")
     public ResponseEntity<ApiResponse<String>> getCurrentToken(
             @PathVariable Long serviceId) {
         QueueStatusResponse response = queueService.getQueueStatus(serviceId, null);
-        return ResponseEntity.ok(ApiResponse.success(response.getCurrentlyServing(), "Current token fetched"));
+        return ResponseEntity.ok(ApiResponse.success("Currently serving", response.getCurrentlyServing()));
     }
 
     @GetMapping(value = "/queues/{serviceId}/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
@@ -62,7 +62,7 @@ public class TokenController {
             @RequestHeader("X-User-Id") Long userId) {
         
         TokenResponse response = queueService.getTokenDetails(tokenId, userId);
-        return ResponseEntity.ok(ApiResponse.success(response, "Token details fetched"));
+        return ResponseEntity.ok(ApiResponse.success("Token details", response));
     }
 
     @PutMapping("/tokens/{tokenId}/cancel")
@@ -71,6 +71,6 @@ public class TokenController {
             @RequestHeader("X-User-Id") Long userId) {
         
         TokenResponse response = queueService.cancelToken(tokenId, userId);
-        return ResponseEntity.ok(ApiResponse.success(response, "Token cancelled"));
+        return ResponseEntity.ok(ApiResponse.success("Token cancelled", response));
     }
 }

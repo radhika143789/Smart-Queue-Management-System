@@ -7,6 +7,7 @@ import com.smartqueue.notification.repository.NotificationRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.util.List;
@@ -19,6 +20,7 @@ public class NotificationService {
     private final List<NotificationProvider> providers;
     private final NotificationRepository notificationRepository;
 
+    @Transactional
     public void processEvent(QueueEvent event) {
         if (event == null || event.getEventType() == null) {
             log.warn("Received null event or event type");
@@ -111,7 +113,10 @@ public class NotificationService {
                 .type(type)
                 .recipient(recipient)
                 .subject(subject)
-                .referenceId(event.getTokenId() != null ? event.getTokenId() : event.getEventId())
+                // referenceId is String — convert tokenId to String for tracing
+                .referenceId(event.getTokenId() != null
+                        ? String.valueOf(event.getTokenId())
+                        : event.getEventId())
                 .eventType(event.getEventType())
                 .status("PENDING")
                 .build();

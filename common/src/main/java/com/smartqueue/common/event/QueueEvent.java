@@ -33,4 +33,10 @@ public class QueueEvent {
     private String counterName;     // For TOKEN_CALLED events
     private Instant occurredAt;
     private String tenantId;        // For multi-tenant support
+
+    /** Derived convenience field — minutes rounded up from estimatedWaitSeconds */
+    public int getEstimatedWaitMinutes() {
+        if (estimatedWaitSeconds == null || estimatedWaitSeconds <= 0) return 0;
+        return (int) Math.ceil(estimatedWaitSeconds / 60.0);
+    }
 }
