@@ -24,7 +24,7 @@ import java.util.function.Function;
 @Slf4j
 public class JwtUtil {
 
-    @Value("${app.jwt.secret:fallback-secret-min-512-bits-long-placeholder-for-tests-only}")
+    @Value("${app.jwt.secret}")
     private String secretKey;
 
     @Value("${app.jwt.access-expiry-ms:900000}")

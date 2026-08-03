@@ -1,0 +1,19 @@
+# ============================================================
+# LOCAL DEVELOPER OVERRIDES — NEVER COMMIT THIS FILE
+# ============================================================
+# Copy this file to: auth-service/src/main/resources/application-local.yml
+# Then run the service with: --spring.profiles.active=local
+#
+# This file is gitignored via *-local.yml pattern in .gitignore
+# ============================================================
+
+spring:
+  datasource:
+    password: your_local_db_password_here
+  data:
+    redis:
+      password: your_local_redis_password_here
+
+app:
+  jwt:
+    secret: your-minimum-64-character-local-jwt-secret-key-replace-this-value

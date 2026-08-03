@@ -8,7 +8,7 @@ spring:
     redis:
       host: ${REDIS_HOST:localhost}
       port: ${REDIS_PORT:6379}
-      password: ${REDIS_PASSWORD:redis123}
+      password: ${REDIS_PASSWORD}
   cloud:
     gateway:
       default-filters:
@@ -141,7 +141,7 @@ resilience4j:
 
 app:
   jwt:
-    secret: ${JWT_SECRET:fallback-secret-min-512-bits-long-fallback-secret-min-512-bits-long-fallback}
+    secret: ${JWT_SECRET}
   public-paths:
     - /api/auth/login
     - /api/auth/register

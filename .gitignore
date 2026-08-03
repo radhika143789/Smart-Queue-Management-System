@@ -24,6 +24,8 @@ mvnw.cmd
 # ========================
 application-local.yml
 application-local.properties
+**/application-local.yml
+**/application-dev-override.yml
 *.log
 logs/
 

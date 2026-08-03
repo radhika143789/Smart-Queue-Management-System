@@ -1,0 +1,22 @@
+# GitGuardian Policy Configuration
+# Tells GitGuardian which files/patterns are intentionally example/template files
+# and should not be flagged as real secret leaks.
+
+version: 2
+
+# ============================================================
+# IGNORED PATHS — these are example/template files only.
+# They contain placeholder values, NOT real credentials.
+# ============================================================
+ignore-paths:
+  - .env.example              # Template file — users must copy to .env (gitignored)
+  - "**/*.example"            # Any *.example files
+  - "**/application-local.yml.example"
+
+# ============================================================
+# IGNORED DETECTORS — suppress specific low-signal patterns
+# that commonly false-positive on Spring Boot configs.
+# ============================================================
+# Uncomment if GitGuardian still flags Spring property placeholders:
+# ignore-detectors:
+#   - generic_high_entropy_secret
