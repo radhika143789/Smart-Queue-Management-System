@@ -1,0 +1,68 @@
+server:
+  port: 8081
+  servlet:
+    context-path: /
+
+spring:
+  application:
+    name: auth-service
+  datasource:
+    url: jdbc:postgresql://${POSTGRES_HOST:localhost}:${POSTGRES_PORT:5432}/${AUTH_DB:auth_db}
+    username: ${POSTGRES_USER:smartqueue}
+    password: ${POSTGRES_PASSWORD:smartqueue123}
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 2
+      connection-timeout: 30000
+      idle-timeout: 600000
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: true
+        default_schema: public
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+  security:
+    oauth2:
+      client:
+        registration:
+          google:
+            client-id: ${GOOGLE_CLIENT_ID:}
+            client-secret: ${GOOGLE_CLIENT_SECRET:}
+            scope: email, profile
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:redis123}
+      timeout: 2000ms
+
+app:
+  jwt:
+    secret: ${JWT_SECRET:fallback-secret-min-512-bits-long-fallback-secret-min-512-bits-long-fallback}
+    access-expiry-ms: ${JWT_ACCESS_EXPIRY_MS:900000}
+    refresh-expiry-ms: ${JWT_REFRESH_EXPIRY_MS:604800000}
+  cors:
+    allowed-origins: "http://localhost:3000,http://localhost:8080"
+  frontend:
+    url: ${FRONTEND_URL:http://localhost:3000}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      show-details: when-authorized
+
+logging:
+  level:
+    com.smartqueue: DEBUG
+    org.springframework.security: INFO

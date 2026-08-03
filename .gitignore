@@ -1,0 +1,93 @@
+# ========================
+# Maven
+# ========================
+target/
+!.mvn/wrapper/maven-wrapper.jar
+!**/src/main/**/target/
+!**/src/test/**/target/
+*.class
+*.jar
+*.war
+*.ear
+*.nar
+*.zip
+*.tar.gz
+*.rar
+
+# Maven wrapper
+.mvn/
+mvnw
+mvnw.cmd
+
+# ========================
+# Spring Boot
+# ========================
+application-local.yml
+application-local.properties
+*.log
+logs/
+
+# ========================
+# Environment & Secrets
+# ========================
+.env
+!.env.example
+*.pem
+*.key
+*.p12
+*.jks
+*.keystore
+
+# ========================
+# IDE
+# ========================
+.idea/
+*.iml
+*.iws
+*.ipr
+.vscode/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+.classpath
+.project
+.settings/
+.factorypath
+bin/
+
+# ========================
+# Docker
+# ========================
+docker-compose.override.yml
+
+# ========================
+# OS
+# ========================
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ========================
+# Node (frontend)
+# ========================
+node_modules/
+npm-debug.log*
+dist/
+.npm
+
+# ========================
+# Test reports
+# ========================
+/test-results/
+surefire-reports/
+
+# ========================
+# Misc
+# ========================
+*.tmp
+*.bak
+*.swp
+*~.nib
+local.properties

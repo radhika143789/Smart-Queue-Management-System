@@ -1,0 +1,148 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: api-gateway
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:redis123}
+  cloud:
+    gateway:
+      default-filters:
+        - DedupeResponseHeader=Access-Control-Allow-Credentials Access-Control-Allow-Origin
+      routes:
+        # ========================
+        # AUTH SERVICE ROUTES
+        # ========================
+        - id: auth-service-public
+          uri: ${AUTH_SERVICE_URL:http://localhost:8081}
+          predicates:
+            - Path=/api/auth/**
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: auth-cb
+                fallbackUri: forward:/fallback/auth
+            - name: RequestRateLimiter
+              args:
+                redis-rate-limiter.replenishRate: 20
+                redis-rate-limiter.burstCapacity: 40
+                key-resolver: "#{@ipKeyResolver}"
+
+        # ========================
+        # QUEUE SERVICE ROUTES
+        # ========================
+        - id: queue-service
+          uri: ${QUEUE_SERVICE_URL:http://localhost:8082}
+          predicates:
+            - Path=/api/queues/**, /api/tokens/**
+          filters:
+            - JwtAuthenticationFilter
+            - name: CircuitBreaker
+              args:
+                name: queue-cb
+                fallbackUri: forward:/fallback/queue
+            - name: RequestRateLimiter
+              args:
+                redis-rate-limiter.replenishRate: 30
+                redis-rate-limiter.burstCapacity: 60
+                key-resolver: "#{@userKeyResolver}"
+
+        # ========================
+        # ADMIN SERVICE ROUTES
+        # ========================
+        - id: admin-service
+          uri: ${ADMIN_SERVICE_URL:http://localhost:8085}
+          predicates:
+            - Path=/api/admin/**
+          filters:
+            - JwtAuthenticationFilter
+            - name: CircuitBreaker
+              args:
+                name: admin-cb
+                fallbackUri: forward:/fallback/admin
+
+        # ========================
+        # ANALYTICS SERVICE ROUTES
+        # ========================
+        - id: analytics-service
+          uri: ${ANALYTICS_SERVICE_URL:http://localhost:8084}
+          predicates:
+            - Path=/api/analytics/**
+          filters:
+            - JwtAuthenticationFilter
+            - name: CircuitBreaker
+              args:
+                name: analytics-cb
+                fallbackUri: forward:/fallback/analytics
+
+        # ========================
+        # NOTIFICATION SERVICE ROUTES (internal only, not usually exposed)
+        # ========================
+        - id: notification-service
+          uri: ${NOTIF_SERVICE_URL:http://localhost:8083}
+          predicates:
+            - Path=/api/notifications/**
+          filters:
+            - JwtAuthenticationFilter
+            - name: CircuitBreaker
+              args:
+                name: notif-cb
+                fallbackUri: forward:/fallback/notification
+
+ resilience4j:
+  circuitbreaker:
+    instances:
+      auth-cb:
+        registerHealthIndicator: true
+        slidingWindowSize: 10
+        minimumNumberOfCalls: 5
+        permittedNumberOfCallsInHalfOpenState: 3
+        automaticTransitionFromOpenToHalfOpenEnabled: true
+        waitDurationInOpenState: 5s
+        failureRateThreshold: 50
+        eventConsumerBufferSize: 10
+      queue-cb:
+        registerHealthIndicator: true
+        slidingWindowSize: 20
+        minimumNumberOfCalls: 10
+        failureRateThreshold: 50
+        waitDurationInOpenState: 10s
+  timelimiter:
+    instances:
+      auth-cb:
+        timeoutDuration: 3s
+      queue-cb:
+        timeoutDuration: 5s
+
+app:
+  jwt:
+    secret: ${JWT_SECRET:fallback-secret-min-512-bits-long-fallback-secret-min-512-bits-long-fallback}
+  public-paths:
+    - /api/auth/login
+    - /api/auth/register
+    - /api/auth/refresh
+    - /api/auth/oauth2
+    - /actuator/health
+    - /fallback
+    - /api/queues/*/current  # Public: currently serving number
+    - /api/queues/*/stream   # SSE stream (auth handled at queue service level)
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,gateway
+  endpoint:
+    health:
+      show-details: always
+    gateway:
+      enabled: true
+
+logging:
+  level:
+    com.smartqueue: DEBUG
+    org.springframework.cloud.gateway: INFO

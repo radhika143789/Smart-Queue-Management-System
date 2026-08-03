@@ -1,0 +1,173 @@
+version: '3.9'
+
+networks:
+  smartqueue-net:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  redis_data:
+  kafka_data:
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./docker/postgres/init-databases.sh:/docker-entrypoint-initdb.d/init-databases.sh
+    networks:
+      - smartqueue-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7.2-alpine
+    command: redis-server --requirepass ${REDIS_PASSWORD}
+    volumes:
+      - redis_data:/data
+    networks:
+      - smartqueue-net
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.6.0
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    networks:
+      - smartqueue-net
+
+  kafka:
+    image: confluentinc/cp-kafka:7.6.0
+    depends_on:
+      - zookeeper
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_CREATE_TOPICS: "token.booked:3:1,token.called:3:1,token.completed:3:1,token.cancelled:3:1,notification.retry:1:1"
+    volumes:
+      - kafka_data:/var/lib/kafka/data
+    networks:
+      - smartqueue-net
+    healthcheck:
+      test: ["CMD", "kafka-topics", "--bootstrap-server", "kafka:9092", "--list"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  auth-service:
+    build: ./auth-service
+    ports:
+      - "8081:8081"
+    env_file: .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    networks:
+      - smartqueue-net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8081/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  queue-service:
+    build: ./queue-service
+    ports:
+      - "8082:8082"
+    env_file: .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    networks:
+      - smartqueue-net
+
+  notification-service:
+    build: ./notification-service
+    ports:
+      - "8083:8083"
+    env_file: .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    networks:
+      - smartqueue-net
+
+  analytics-service:
+    build: ./analytics-service
+    ports:
+      - "8084:8084"
+    env_file: .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - smartqueue-net
+
+  admin-service:
+    build: ./admin-service
+    ports:
+      - "8085:8085"
+    env_file: .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - smartqueue-net
+
+  gateway:
+    build: ./gateway
+    ports:
+      - "8080:8080"
+    environment:
+      AUTH_SERVICE_URL: http://auth-service:8081
+      QUEUE_SERVICE_URL: http://queue-service:8082
+      NOTIF_SERVICE_URL: http://notification-service:8083
+      ANALYTICS_SERVICE_URL: http://analytics-service:8084
+      ADMIN_SERVICE_URL: http://admin-service:8085
+    depends_on:
+      - auth-service
+      - queue-service
+      - notification-service
+      - analytics-service
+      - admin-service
+    networks:
+      - smartqueue-net
+
+  prometheus:
+    image: prom/prometheus:v2.51.0
+    volumes:
+      - ./docker/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+    networks:
+      - smartqueue-net
+
+  grafana:
+    image: grafana/grafana:10.4.0
+    ports:
+      - "3000:3000"
+    networks:
+      - smartqueue-net
