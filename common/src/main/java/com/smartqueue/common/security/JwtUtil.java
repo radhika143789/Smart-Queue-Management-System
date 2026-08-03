@@ -24,13 +24,13 @@ import java.util.function.Function;
 @Slf4j
 public class JwtUtil {
 
-    @Value("${jwt.secret:a-very-long-secret-key-that-is-at-least-512-bits-long-for-HS512-signing-algorithm}")
+    @Value("${app.jwt.secret:fallback-secret-min-512-bits-long-placeholder-for-tests-only}")
     private String secretKey;
 
-    @Value("${jwt.access.expiry.ms:900000}")
+    @Value("${app.jwt.access-expiry-ms:900000}")
     private long accessExpiryMs;
 
-    @Value("${jwt.refresh.expiry.ms:604800000}")
+    @Value("${app.jwt.refresh-expiry-ms:604800000}")
     private long refreshExpiryMs;
 
     private SecretKey getSigningKey() {

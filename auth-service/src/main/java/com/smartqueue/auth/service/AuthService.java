@@ -14,6 +14,8 @@ import com.smartqueue.auth.repository.RefreshTokenRepository;
 import com.smartqueue.auth.repository.RoleRepository;
 import com.smartqueue.auth.repository.UserRepository;
 import com.smartqueue.auth.util.JwtUtil;
+import com.smartqueue.common.enums.ErrorCode;
+import com.smartqueue.common.exception.AppException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -26,6 +28,7 @@ import java.time.Instant;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -50,14 +53,14 @@ public class AuthService {
     @Transactional
     public UserEntity register(RegisterRequest request) {
         if (userRepository.existsByEmail(request.getEmail())) {
-            throw new RuntimeException("Email already exists");
+            throw new AppException(ErrorCode.USER_ALREADY_EXISTS, "Email already registered: " + request.getEmail());
         }
         if (userRepository.existsByUsername(request.getUsername())) {
-            throw new RuntimeException("Username already exists");
+            throw new AppException(ErrorCode.USER_ALREADY_EXISTS, "Username already taken: " + request.getUsername());
         }
 
         RoleEntity userRole = roleRepository.findByName(UserRole.USER)
-                .orElseThrow(() -> new RuntimeException("Default role not found"));
+                .orElseThrow(() -> new AppException(ErrorCode.INTERNAL_ERROR, "Default USER role not seeded in database"));
 
         UserEntity user = UserEntity.builder()
                 .email(request.getEmail())
@@ -72,25 +75,41 @@ public class AuthService {
         return userRepository.save(user);
     }
 
+    /**
+     * Register a new user and immediately issue auth tokens.
+     * Avoids the anti-pattern of calling login() after register (which would re-hash password comparison).
+     */
+    @Transactional
+    public AuthResponse registerAndLogin(RegisterRequest request, String ipAddress, String deviceInfo) {
+        UserEntity user = register(request);
+        user.setLastLoginAt(Instant.now());
+        userRepository.save(user);
+        return generateAuthResponse(user, ipAddress, deviceInfo);
+    }
+
     @Transactional
     public AuthResponse login(LoginRequest request, String ipAddress, String deviceInfo) {
+        // Use a generic message to prevent user enumeration attacks
         UserEntity user = userRepository.findByEmail(request.getEmail())
-                .orElseThrow(() -> new RuntimeException("Invalid credentials"));
+                .orElseThrow(() -> new AppException(ErrorCode.INVALID_CREDENTIALS));
 
         if (!user.isAccountNonLocked()) {
-            throw new RuntimeException("Account is locked due to too many failed attempts");
+            throw new AppException(ErrorCode.INVALID_CREDENTIALS,
+                    "Account is temporarily locked due to too many failed login attempts. Try again later.");
         }
 
         if (!passwordEncoder.matches(request.getPassword(), user.getPassword())) {
-            user.setFailedLoginAttempts(user.getFailedLoginAttempts() + 1);
-            if (user.getFailedLoginAttempts() >= 5) {
+            int attempts = user.getFailedLoginAttempts() + 1;
+            user.setFailedLoginAttempts(attempts);
+            if (attempts >= 5) {
                 user.setLockedUntil(Instant.now().plusSeconds(900)); // 15 mins lock
+                log.warn("Account locked for user {} after {} failed attempts", user.getEmail(), attempts);
             }
             userRepository.save(user);
-            throw new RuntimeException("Invalid credentials");
+            throw new AppException(ErrorCode.INVALID_CREDENTIALS);
         }
 
-        // Reset failures
+        // Reset failures on successful login
         user.setFailedLoginAttempts(0);
         user.setLockedUntil(null);
         user.setLastLoginAt(Instant.now());
@@ -102,15 +121,15 @@ public class AuthService {
     @Transactional
     public AuthResponse refreshToken(String refreshTokenStr) {
         RefreshTokenEntity tokenEntity = refreshTokenRepository.findByToken(refreshTokenStr)
-                .orElseThrow(() -> new RuntimeException("Refresh token not found"));
+                .orElseThrow(() -> new AppException(ErrorCode.REFRESH_TOKEN_EXPIRED, "Refresh token not found or already revoked"));
 
         if (!tokenEntity.isValid()) {
-            throw new RuntimeException("Refresh token is invalid or expired");
+            throw new AppException(ErrorCode.REFRESH_TOKEN_EXPIRED, "Refresh token has expired or been revoked");
         }
 
         UserEntity user = tokenEntity.getUser();
 
-        // Rotate token
+        // Rotate: revoke old token, issue new one
         tokenEntity.setRevoked(true);
         refreshTokenRepository.save(tokenEntity);
 
@@ -125,9 +144,10 @@ public class AuthService {
         });
     }
 
+    @Transactional(readOnly = true)
     public UserProfileResponse getUserProfile(Long userId) {
         UserEntity user = userRepository.findById(userId)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+                .orElseThrow(() -> new AppException(ErrorCode.RESOURCE_NOT_FOUND, "User not found: " + userId));
 
         return UserProfileResponse.builder()
                 .id(user.getId())
@@ -150,9 +170,9 @@ public class AuthService {
         if (providerId == null) {
             providerId = oauth2User.getAttribute("id"); // Fallback for other providers
         }
-        
+
         if (email == null) {
-            throw new RuntimeException("Email not found from OAuth2 provider");
+            throw new AppException(ErrorCode.INVALID_CREDENTIALS, "Email not provided by OAuth2 provider");
         }
 
         Optional<OAuthProviderEntity> existingProviderOpt = oauthProviderRepository.findByProviderAndProviderUserId(provider, providerId);
@@ -168,7 +188,7 @@ public class AuthService {
             } else {
                 // Create new user
                 RoleEntity userRole = roleRepository.findByName(UserRole.USER)
-                        .orElseThrow(() -> new RuntimeException("Default role not found"));
+                        .orElseThrow(() -> new AppException(ErrorCode.INTERNAL_ERROR, "Default USER role not seeded"));
                 
                 String firstName = oauth2User.getAttribute("given_name");
                 String lastName = oauth2User.getAttribute("family_name");
@@ -200,8 +220,16 @@ public class AuthService {
     }
 
     private AuthResponse generateAuthResponse(UserEntity user, String ip, String deviceInfo) {
-        String accessToken = jwtUtil.generateToken(user.getEmail(), user.getId());
-        String refreshToken = UUID.randomUUID().toString() + "-" + UUID.randomUUID().toString();
+        // Collect roles as a Set<String> for inclusion in JWT claims
+        Set<String> roles = user.getRoles().stream()
+                .map(r -> r.getName().name())
+                .collect(Collectors.toSet());
+
+        // Generate access token with userId + roles embedded as claims
+        String accessToken = jwtUtil.generateAccessToken(user, user.getId(), roles);
+
+        // Refresh token is a secure random UUID pair (not a JWT — stored in DB)
+        String refreshToken = UUID.randomUUID() + "-" + UUID.randomUUID();
 
         RefreshTokenEntity refreshTokenEntity = RefreshTokenEntity.builder()
                 .token(refreshToken)
@@ -215,6 +243,7 @@ public class AuthService {
         return AuthResponse.builder()
                 .accessToken(accessToken)
                 .refreshToken(refreshToken)
+                .tokenType("Bearer")
                 .expiresIn(accessExpiryMs / 1000)
                 .userId(user.getId())
                 .email(user.getEmail())
