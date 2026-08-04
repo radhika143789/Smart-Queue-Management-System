@@ -8,6 +8,7 @@ volumes:
   postgres_data:
   redis_data:
   kafka_data:
+  grafana_data:
 
 services:
   postgres:
@@ -23,6 +24,7 @@ services:
       - ./docker/postgres/init-databases.sh:/docker-entrypoint-initdb.d/init-databases.sh
     networks:
       - smartqueue-net
+    restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
       interval: 10s
@@ -36,6 +38,7 @@ services:
       - redis_data:/data
     networks:
       - smartqueue-net
+    restart: unless-stopped
     healthcheck:
       test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
       interval: 10s
@@ -53,22 +56,26 @@ services:
   kafka:
     image: confluentinc/cp-kafka:7.6.0
     depends_on:
-      - zookeeper
+      zookeeper:
+        condition: service_started
     environment:
       KAFKA_BROKER_ID: 1
       KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
       KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'true'
       KAFKA_CREATE_TOPICS: "token.booked:3:1,token.called:3:1,token.completed:3:1,token.cancelled:3:1,notification.retry:1:1"
     volumes:
       - kafka_data:/var/lib/kafka/data
     networks:
       - smartqueue-net
+    restart: unless-stopped
     healthcheck:
       test: ["CMD", "kafka-topics", "--bootstrap-server", "kafka:9092", "--list"]
       interval: 30s
       timeout: 10s
       retries: 5
+      start_period: 30s
 
   auth-service:
     build: ./auth-service
@@ -82,11 +89,13 @@ services:
         condition: service_healthy
     networks:
       - smartqueue-net
+    restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8081/actuator/health"]
+      test: ["CMD-SHELL", "curl -sf http://localhost:8081/actuator/health | grep -q '\"status\":\"UP\"'"]
       interval: 30s
       timeout: 10s
       retries: 3
+      start_period: 60s
 
   queue-service:
     build: ./queue-service
@@ -102,6 +111,13 @@ services:
         condition: service_healthy
     networks:
       - smartqueue-net
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8082/actuator/health | grep -q '\"status\":\"UP\"'"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
 
   notification-service:
     build: ./notification-service
@@ -115,6 +131,13 @@ services:
         condition: service_healthy
     networks:
       - smartqueue-net
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8083/actuator/health | grep -q '\"status\":\"UP\"'"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
 
   analytics-service:
     build: ./analytics-service
@@ -124,10 +147,17 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-      redis:
+      kafka:
         condition: service_healthy
     networks:
       - smartqueue-net
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8084/actuator/health | grep -q '\"status\":\"UP\"'"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
 
   admin-service:
     build: ./admin-service
@@ -137,15 +167,21 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-      redis:
-        condition: service_healthy
     networks:
       - smartqueue-net
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8085/actuator/health | grep -q '\"status\":\"UP\"'"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
 
   gateway:
     build: ./gateway
     ports:
       - "8080:8080"
+    env_file: .env
     environment:
       AUTH_SERVICE_URL: http://auth-service:8081
       QUEUE_SERVICE_URL: http://queue-service:8082
@@ -153,24 +189,46 @@ services:
       ANALYTICS_SERVICE_URL: http://analytics-service:8084
       ADMIN_SERVICE_URL: http://admin-service:8085
     depends_on:
-      - auth-service
-      - queue-service
-      - notification-service
-      - analytics-service
-      - admin-service
+      auth-service:
+        condition: service_healthy
+      queue-service:
+        condition: service_healthy
     networks:
       - smartqueue-net
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8080/actuator/health | grep -q '\"status\":\"UP\"'"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 90s
 
   prometheus:
     image: prom/prometheus:v2.51.0
+    ports:
+      - "9090:9090"
     volumes:
-      - ./docker/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - ./docker/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.retention.time=7d'
     networks:
       - smartqueue-net
+    restart: unless-stopped
 
   grafana:
     image: grafana/grafana:10.4.0
     ports:
       - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /var/lib/grafana/dashboards/smartqueue-dashboard.json
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./docker/grafana/dashboards:/var/lib/grafana/dashboards:ro
     networks:
       - smartqueue-net
+    restart: unless-stopped
+    depends_on:
+      - prometheus

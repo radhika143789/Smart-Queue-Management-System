@@ -1,0 +1,196 @@
+# HTTP Requests (Postman / REST Client format)
+# Smart Queue Management System — API Test Collection
+# Replace BASE_URL, TOKEN values as needed
+
+@base_url = http://localhost:8080
+@content_type = application/json
+
+### ─── AUTH SERVICE ──────────────────────────────────────────────
+
+### 1. Register new user
+POST {{base_url}}/api/auth/register
+Content-Type: {{content_type}}
+
+{
+  "email": "demo@smartqueue.com",
+  "username": "demouser",
+  "password": "Password123!",
+  "firstName": "Demo",
+  "lastName": "User"
+}
+
+### 2. Login
+# @name login
+POST {{base_url}}/api/auth/login
+Content-Type: {{content_type}}
+
+{
+  "email": "demo@smartqueue.com",
+  "password": "Password123!"
+}
+
+### 3. Get current user profile
+GET {{base_url}}/api/auth/me
+Authorization: Bearer {{access_token}}
+
+### 4. Refresh token
+POST {{base_url}}/api/auth/refresh
+Content-Type: {{content_type}}
+
+{
+  "refreshToken": "{{refresh_token}}"
+}
+
+### 5. Logout
+POST {{base_url}}/api/auth/logout
+Authorization: Bearer {{access_token}}
+Content-Type: {{content_type}}
+
+{
+  "refreshToken": "{{refresh_token}}"
+}
+
+### ─── QUEUE SERVICE ──────────────────────────────────────────────
+
+### 6. List all active services
+GET {{base_url}}/api/services
+
+### 7. Get queue status for service 1 (public — no auth)
+GET {{base_url}}/api/queues/1/status
+
+### 8. Get queue status with user context (auth required)
+GET {{base_url}}/api/queues/1/status
+Authorization: Bearer {{access_token}}
+
+### 9. Book a token (auth required)
+POST {{base_url}}/api/queues/1/book
+Authorization: Bearer {{access_token}}
+Content-Type: {{content_type}}
+
+{
+  "userPhone": "+919876543210"
+}
+
+### 10. Get currently serving token (public)
+GET {{base_url}}/api/queues/1/current
+
+### 11. Get my token details
+GET {{base_url}}/api/tokens/{{token_id}}
+Authorization: Bearer {{access_token}}
+
+### 12. Cancel my token
+PUT {{base_url}}/api/tokens/{{token_id}}/cancel
+Authorization: Bearer {{access_token}}
+
+### 13. Subscribe to live SSE stream (open in browser)
+# GET {{base_url}}/api/queues/1/stream
+
+### ─── ADMIN QUEUE OPERATIONS ─────────────────────────────────────
+
+### 14. Call next token (Staff)
+POST {{base_url}}/api/admin/queues/1/call-next?counterId=1
+Authorization: Bearer {{staff_token}}
+
+### 15. Complete token service (Staff)
+POST {{base_url}}/api/admin/tokens/{{token_id}}/complete
+Authorization: Bearer {{staff_token}}
+
+### 16. Mark no-show (Staff)
+POST {{base_url}}/api/admin/tokens/{{token_id}}/no-show
+Authorization: Bearer {{staff_token}}
+
+### ─── ANALYTICS SERVICE ──────────────────────────────────────────
+
+### 17. Today's daily stats for service 1
+GET {{base_url}}/api/analytics/services/1/daily
+Authorization: Bearer {{access_token}}
+
+### 18. Daily stats for specific date
+GET {{base_url}}/api/analytics/services/1/daily?date=2024-08-01
+Authorization: Bearer {{access_token}}
+
+### 19. Hourly breakdown for today
+GET {{base_url}}/api/analytics/services/1/hourly
+Authorization: Bearer {{access_token}}
+
+### 20. Peak hours heatmap (30-day rolling)
+GET {{base_url}}/api/analytics/services/1/peak-hours
+Authorization: Bearer {{access_token}}
+
+### 21. Service summary
+GET {{base_url}}/api/analytics/services/1/summary
+Authorization: Bearer {{access_token}}
+
+### ─── ADMIN SERVICE ───────────────────────────────────────────────
+
+### 22. Admin dashboard
+GET {{base_url}}/api/admin/dashboard
+Authorization: Bearer {{admin_token}}
+
+### 23. List all managed services
+GET {{base_url}}/api/admin/services
+Authorization: Bearer {{admin_token}}
+
+### 24. Create a new service
+POST {{base_url}}/api/admin/services
+Authorization: Bearer {{admin_token}}
+Content-Type: {{content_type}}
+
+{
+  "name": "Passport Services",
+  "description": "Passport application and renewal",
+  "location": "Floor 2, Window D",
+  "maxDailyTokens": 200,
+  "avgServiceTimeSeconds": 600,
+  "openTime": "09:00",
+  "closeTime": "16:00"
+}
+
+### 25. Update service
+PUT {{base_url}}/api/admin/services/1
+Authorization: Bearer {{admin_token}}
+Content-Type: {{content_type}}
+
+{
+  "avgServiceTimeSeconds": 300,
+  "isActive": true
+}
+
+### 26. Pause a service
+POST {{base_url}}/api/admin/services/1/pause
+Authorization: Bearer {{admin_token}}
+
+### 27. Resume a service
+POST {{base_url}}/api/admin/services/1/resume
+Authorization: Bearer {{admin_token}}
+
+### 28. Get all system settings
+GET {{base_url}}/api/admin/settings
+Authorization: Bearer {{admin_token}}
+
+### 29. Update a system setting
+POST {{base_url}}/api/admin/settings
+Authorization: Bearer {{admin_token}}
+Content-Type: {{content_type}}
+
+{
+  "settingKey": "max_tokens_per_user_per_service",
+  "settingValue": "2",
+  "description": "Allow users to hold 2 tokens simultaneously",
+  "category": "QUEUE"
+}
+
+### 30. View audit log
+GET {{base_url}}/api/admin/audit-logs?page=0&size=20
+Authorization: Bearer {{admin_token}}
+
+### ─── HEALTH CHECKS (no auth) ────────────────────────────────────
+
+### 31. Gateway health
+GET {{base_url}}/actuator/health
+
+### 32. Auth service health (direct)
+GET http://localhost:8081/actuator/health
+
+### 33. Queue service health (direct)
+GET http://localhost:8082/actuator/health

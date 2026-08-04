@@ -1,0 +1,128 @@
+{
+  "title": "SmartQueue — System Overview",
+  "uid": "smartqueue-overview",
+  "version": 1,
+  "schemaVersion": 38,
+  "refresh": "30s",
+  "time": { "from": "now-1h", "to": "now" },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Service Health",
+      "type": "stat",
+      "gridPos": { "x": 0, "y": 0, "w": 24, "h": 4 },
+      "targets": [
+        {
+          "expr": "up{job=~\"auth-service|queue-service|notification-service|analytics-service|admin-service|api-gateway\"}",
+          "legendFormat": "{{instance}}"
+        }
+      ],
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "reduceOptions": { "calcs": ["lastNotNull"] }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [{ "type": "value", "options": { "0": { "text": "DOWN", "color": "red" }, "1": { "text": "UP", "color": "green" } } }]
+        }
+      }
+    },
+    {
+      "id": 2,
+      "title": "HTTP Requests / sec (Gateway)",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 4, "w": 12, "h": 8 },
+      "targets": [
+        {
+          "expr": "rate(http_server_requests_seconds_count{job=\"api-gateway\"}[1m])",
+          "legendFormat": "{{method}} {{uri}} {{status}}"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "HTTP P99 Latency (ms)",
+      "type": "timeseries",
+      "gridPos": { "x": 12, "y": 4, "w": 12, "h": 8 },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.99, rate(http_server_requests_seconds_bucket[1m])) * 1000",
+          "legendFormat": "P99 {{job}}"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "JVM Heap Used (MB)",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 12, "w": 12, "h": 8 },
+      "targets": [
+        {
+          "expr": "jvm_memory_used_bytes{area=\"heap\"} / 1024 / 1024",
+          "legendFormat": "{{job}} heap"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "title": "JVM GC Pause (ms/min)",
+      "type": "timeseries",
+      "gridPos": { "x": 12, "y": 12, "w": 12, "h": 8 },
+      "targets": [
+        {
+          "expr": "rate(jvm_gc_pause_seconds_sum[1m]) * 1000",
+          "legendFormat": "{{job}} {{cause}}"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "title": "Kafka Consumer Lag",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 20, "w": 24, "h": 8 },
+      "targets": [
+        {
+          "expr": "kafka_consumer_fetch_manager_records_lag{group_id=~\"notification-service|analytics-service\"}",
+          "legendFormat": "{{group_id}} — {{topic}}"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "title": "DB Connection Pool (Queue Service)",
+      "type": "gauge",
+      "gridPos": { "x": 0, "y": 28, "w": 8, "h": 6 },
+      "targets": [
+        {
+          "expr": "hikaricp_connections_active{job=\"queue-service\"}",
+          "legendFormat": "Active"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "min": 0, "max": 20, "thresholds": { "steps": [{ "value": 0, "color": "green" }, { "value": 15, "color": "yellow" }, { "value": 18, "color": "red" }] } }
+      }
+    },
+    {
+      "id": 8,
+      "title": "Circuit Breaker State",
+      "type": "stat",
+      "gridPos": { "x": 8, "y": 28, "w": 16, "h": 6 },
+      "targets": [
+        {
+          "expr": "resilience4j_circuitbreaker_state{job=\"api-gateway\"}",
+          "legendFormat": "{{name}}"
+        }
+      ],
+      "options": {
+        "colorMode": "background",
+        "reduceOptions": { "calcs": ["lastNotNull"] }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [{ "type": "value", "options": { "0": { "text": "CLOSED", "color": "green" }, "1": { "text": "OPEN", "color": "red" }, "2": { "text": "HALF_OPEN", "color": "yellow" } } }]
+        }
+      }
+    }
+  ]
+}
