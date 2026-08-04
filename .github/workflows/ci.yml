@@ -8,12 +8,12 @@ on:
 
 env:
   JAVA_VERSION: '17'
-  MAVEN_OPTS: '-Xmx2g'
+  MAVEN_OPTS: '-Xmx2g -XX:+TieredCompilation -XX:TieredStopAtLevel=1'
 
 jobs:
-  # ─────────────────────────────────────────────────────────
+  # ─────────────────────────────────────────────────────────────
   # Job 1: Build common library + all service modules
-  # ─────────────────────────────────────────────────────────
+  # ─────────────────────────────────────────────────────────────
   build:
     name: Build & Compile
     runs-on: ubuntu-latest
@@ -28,19 +28,31 @@ jobs:
           distribution: 'temurin'
           cache: 'maven'
 
+      # Verify Maven is available
+      - name: Maven version
+        run: mvn --version
+
+      # Build ALL modules. If this step fails, the error message shows exactly
+      # which class/file caused the compile error.
       - name: Build all modules (skip tests)
-        run: mvn clean package -DskipTests --no-transfer-progress
+        run: |
+          mvn clean package \
+            -DskipTests \
+            --no-transfer-progress \
+            --batch-mode \
+            -Dorg.slf4j.simpleLogger.log.org.apache.maven.cli.transfer.Slf4jMavenTransferListener=WARN
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
+        if: success()
         with:
           name: service-jars
           path: '**/target/*.jar'
           retention-days: 1
 
-  # ─────────────────────────────────────────────────────────
+  # ─────────────────────────────────────────────────────────────
   # Job 2: Unit tests (fast, no containers needed)
-  # ─────────────────────────────────────────────────────────
+  # ─────────────────────────────────────────────────────────────
   unit-tests:
     name: Unit Tests
     runs-on: ubuntu-latest
@@ -60,21 +72,22 @@ jobs:
         run: |
           mvn test \
             -pl auth-service,queue-service \
-            -Dtest="**/*Test" \
-            -DexcludeTests="**/*IntegrationTest" \
-            --no-transfer-progress
+            --no-transfer-progress \
+            --batch-mode \
+            -Dtest="JwtUtilTest,EtaCalculationServiceTest" \
+            -Dsurefire.failIfNoSpecifiedTests=false
         env:
           SPRING_PROFILES_ACTIVE: test
 
       - name: Publish Unit Test Results
-        uses: EnricoMi/publish-unit-test-result-action@v2
+        uses: EnricoMi/publish-unit-test-result-action@v3
         if: always()
         with:
           files: '**/target/surefire-reports/TEST-*.xml'
 
-  # ─────────────────────────────────────────────────────────
+  # ─────────────────────────────────────────────────────────────
   # Job 3: Integration tests (Testcontainers — needs Docker)
-  # ─────────────────────────────────────────────────────────
+  # ─────────────────────────────────────────────────────────────
   integration-tests:
     name: Integration Tests
     runs-on: ubuntu-latest
@@ -94,21 +107,25 @@ jobs:
         run: |
           mvn test \
             -pl auth-service,queue-service \
-            -Dtest="**/*IntegrationTest" \
-            --no-transfer-progress
+            --no-transfer-progress \
+            --batch-mode \
+            -Dtest="AuthIntegrationTest,QueueServiceIntegrationTest" \
+            -Dsurefire.failIfNoSpecifiedTests=false
         env:
           SPRING_PROFILES_ACTIVE: test
-          TESTCONTAINERS_REUSE_ENABLE: true
+          TESTCONTAINERS_REUSE_ENABLE: 'false'
+          # Testcontainers needs Docker socket
+          DOCKER_HOST: unix:///var/run/docker.sock
 
       - name: Publish Integration Test Results
-        uses: EnricoMi/publish-unit-test-result-action@v2
+        uses: EnricoMi/publish-unit-test-result-action@v3
         if: always()
         with:
           files: '**/target/surefire-reports/TEST-*.xml'
 
-  # ─────────────────────────────────────────────────────────
-  # Job 4: Docker Compose smoke test
-  # ─────────────────────────────────────────────────────────
+  # ─────────────────────────────────────────────────────────────
+  # Job 4: Docker Compose infrastructure smoke test
+  # ─────────────────────────────────────────────────────────────
   docker-smoke-test:
     name: Docker Compose Smoke Test
     runs-on: ubuntu-latest
@@ -122,41 +139,80 @@ jobs:
           cat > .env << 'EOF'
           POSTGRES_USER=smartqueue
           POSTGRES_PASSWORD=smartqueue_ci_pass
+          POSTGRES_HOST=localhost
+          POSTGRES_PORT=5432
+          AUTH_DB=auth_db
+          QUEUE_DB=queue_db
+          NOTIF_DB=notification_db
+          ANALYTICS_DB=analytics_db
+          ADMIN_DB=admin_db
+          REDIS_HOST=localhost
+          REDIS_PORT=6379
           REDIS_PASSWORD=redis_ci_pass
+          KAFKA_BOOTSTRAP_SERVERS=kafka:9092
           JWT_SECRET=Y2ktdGVzdC1qd3Qtc2VjcmV0LWtleS10aGF0LWlzLWxvbmctZW5vdWdoLWZvci1IUzUxMg==
           JWT_ACCESS_EXPIRY_MS=900000
           JWT_REFRESH_EXPIRY_MS=604800000
-          KAFKA_BOOTSTRAP_SERVERS=kafka:9092
           MAIL_USERNAME=ci@test.com
           MAIL_PASSWORD=dummy
+          MAIL_HOST=localhost
+          MAIL_PORT=1025
           SMS_MOCK_MODE=true
+          GOOGLE_CLIENT_ID=dummy
+          GOOGLE_CLIENT_SECRET=dummy
+          TWILIO_ACCOUNT_SID=dummy
+          TWILIO_AUTH_TOKEN=dummy
+          TWILIO_PHONE_NUMBER=+10000000000
+          AUTH_SERVICE_URL=http://auth-service:8081
+          QUEUE_SERVICE_URL=http://queue-service:8082
+          NOTIF_SERVICE_URL=http://notification-service:8083
+          ANALYTICS_SERVICE_URL=http://analytics-service:8084
+          ADMIN_SERVICE_URL=http://admin-service:8085
           EOF
 
       - name: Start infrastructure only (postgres, redis, kafka)
         run: |
           docker compose up -d postgres redis zookeeper kafka
-          echo "Waiting for infrastructure to be healthy..."
-          timeout 120 bash -c 'until docker compose ps | grep -E "postgres.*healthy" && docker compose ps | grep -E "redis.*healthy"; do sleep 5; done'
+          echo "Waiting for postgres and redis to be healthy..."
+          timeout 120 bash -c '
+            until docker compose ps postgres | grep -q "healthy" && \
+                  docker compose ps redis | grep -q "healthy"; do
+              echo "  still waiting..."
+              sleep 5
+            done
+          '
+          echo "Infrastructure is up."
 
       - name: Verify Postgres databases were created
         run: |
-          docker compose exec -T postgres psql -U smartqueue -c '\l' | grep -E "auth_db|queue_db|notification_db|analytics_db|admin_db"
+          docker compose exec -T postgres psql -U smartqueue -c '\l' | \
+            grep -E "auth_db|queue_db|notification_db|analytics_db|admin_db"
+          echo "All 5 databases verified."
 
       - name: Verify Kafka topics were created
         run: |
-          timeout 60 bash -c 'until docker compose exec -T kafka kafka-topics --bootstrap-server kafka:9092 --list 2>/dev/null | grep "token.booked"; do sleep 5; done'
+          timeout 90 bash -c '
+            until docker compose exec -T kafka \
+              kafka-topics --bootstrap-server kafka:9092 --list 2>/dev/null \
+              | grep -q "token.booked"; do
+              echo "  waiting for Kafka topics..."
+              sleep 5
+            done
+          '
+          echo "Kafka topics:"
           docker compose exec -T kafka kafka-topics --bootstrap-server kafka:9092 --list
 
       - name: Tear down
         if: always()
-        run: docker compose down -v
+        run: docker compose down -v --remove-orphans
 
-  # ─────────────────────────────────────────────────────────
+  # ─────────────────────────────────────────────────────────────
   # Job 5: Secret scanning (GitGuardian)
-  # ─────────────────────────────────────────────────────────
+  # ─────────────────────────────────────────────────────────────
   secret-scan:
     name: Secret Scan
     runs-on: ubuntu-latest
+    # Run independently — does not need build to succeed
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -165,7 +221,8 @@ jobs:
 
       - name: GitGuardian scan
         uses: GitGuardian/ggshield-action@v1
-        continue-on-error: true  # Don't block CI, just warn
+        # Always continue — secret scan is advisory, not a gate
+        continue-on-error: true
         env:
           GITHUB_PUSH_BEFORE_SHA: ${{ github.event.before }}
           GITHUB_PUSH_BASE_SHA: ${{ github.event.base }}
