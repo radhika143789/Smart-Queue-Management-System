@@ -2,6 +2,7 @@ package com.smartqueue.gateway.filter;
 
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
+import io.jsonwebtoken.io.Decoders;
 import io.jsonwebtoken.security.Keys;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
@@ -56,31 +57,52 @@ public class JwtAuthenticationFilter extends AbstractGatewayFilterFactory<JwtAut
 
             String authHeader = request.getHeaders().getFirst(HttpHeaders.AUTHORIZATION);
             if (authHeader == null || !authHeader.startsWith("Bearer ")) {
-                return onError(exchange, "Invalid or missing token");
+                return onError(exchange, "Missing or malformed Authorization header");
             }
 
             String token = authHeader.substring(7);
             try {
-                SecretKey key = Keys.hmacShaKeyFor(jwtSecret.getBytes(StandardCharsets.UTF_8));
+                // FIX (BUG #8): Must use BASE64.decode() to match auth-service JwtUtil which also
+                // uses Decoders.BASE64.decode(). Using getBytes(UTF_8) caused SignatureException
+                // on every request, rejecting all valid JWTs.
+                SecretKey key = Keys.hmacShaKeyFor(Decoders.BASE64.decode(jwtSecret));
                 Claims claims = Jwts.parser()
                         .verifyWith(key)
                         .build()
                         .parseSignedClaims(token)
                         .getPayload();
 
+                // FIX: Reject refresh tokens at the gateway — only ACCESS tokens are valid for API calls
+                String tokenType = claims.get("tokenType", String.class);
+                if ("REFRESH".equals(tokenType)) {
+                    log.warn("Refresh token used for API access from path: {}", path);
+                    return onError(exchange, "Refresh tokens cannot be used for API access");
+                }
+
                 String userId = claims.getSubject();
                 String roles = claims.get("roles", String.class);
                 String email = claims.get("email", String.class);
 
+                if (userId == null) {
+                    return onError(exchange, "Token is missing required claims");
+                }
+
                 ServerHttpRequest modifiedRequest = exchange.getRequest().mutate()
                         .header("X-User-Id", userId)
-                        .header("X-User-Roles", roles)
-                        .header("X-User-Email", email)
+                        .header("X-User-Roles", roles != null ? roles : "")
+                        .header("X-User-Email", email != null ? email : "")
                         .build();
 
                 return chain.filter(exchange.mutate().request(modifiedRequest).build());
+
+            } catch (io.jsonwebtoken.ExpiredJwtException e) {
+                log.warn("Expired JWT for path {}: {}", path, e.getMessage());
+                return onError(exchange, "Token has expired");
+            } catch (io.jsonwebtoken.security.SignatureException e) {
+                log.warn("Invalid JWT signature for path {}: {}", path, e.getMessage());
+                return onError(exchange, "Invalid token signature");
             } catch (Exception e) {
-                log.error("JWT validation failed: {}", e.getMessage());
+                log.error("JWT validation failed for path {}: {}", path, e.getMessage());
                 return onError(exchange, "Invalid or missing token");
             }
         };

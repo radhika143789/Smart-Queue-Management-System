@@ -113,6 +113,7 @@ public class NotificationService {
                 .type(type)
                 .recipient(recipient)
                 .subject(subject)
+                .body(body)   // FIX (BUG #6): persist body so RetryScheduler can re-send actual content
                 // referenceId is String — convert tokenId to String for tracing
                 .referenceId(event.getTokenId() != null
                         ? String.valueOf(event.getTokenId())

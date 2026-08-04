@@ -21,7 +21,12 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(AppException.class)
     public ResponseEntity<ApiResponse<Void>> handleAppException(AppException ex) {
-        log.error("AppException: {}", ex.getMessage());
+        // Use WARN for client errors (4xx) and ERROR only for server errors (5xx)
+        if (ex.getHttpStatus().is5xxServerError()) {
+            log.error("AppException [{}]: {}", ex.getErrorCode().getCode(), ex.getMessage());
+        } else {
+            log.warn("AppException [{}]: {}", ex.getErrorCode().getCode(), ex.getMessage());
+        }
         ApiResponse<Void> response = ApiResponse.error(ex.getErrorCode().getCode(), ex.getDetail());
         return new ResponseEntity<>(response, ex.getHttpStatus());
     }
@@ -57,6 +62,14 @@ public class GlobalExceptionHandler {
         log.warn("Resource Not Found: {}", ex.getMessage());
         ApiResponse<Void> response = ApiResponse.error(ErrorCode.RESOURCE_NOT_FOUND.getCode(), "Endpoint not found");
         return new ResponseEntity<>(response, HttpStatus.NOT_FOUND);
+    }
+
+    @ExceptionHandler(org.springframework.dao.DataIntegrityViolationException.class)
+    public ResponseEntity<ApiResponse<Void>> handleDataIntegrityViolation(org.springframework.dao.DataIntegrityViolationException ex) {
+        log.warn("Data integrity violation: {}", ex.getMostSpecificCause().getMessage());
+        ApiResponse<Void> response = ApiResponse.error(ErrorCode.VALIDATION_FAILED.getCode(),
+                "A resource with the same unique identifier already exists");
+        return new ResponseEntity<>(response, HttpStatus.CONFLICT);
     }
 
     @ExceptionHandler(Exception.class)

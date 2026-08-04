@@ -39,7 +39,7 @@ public class AnalyticsService {
                 .serviceId(event.getServiceId())
                 .serviceName(event.getServiceName())
                 .userId(event.getUserId())
-                .bookedAt(event.getTimestamp())
+                .bookedAt(event.getOccurredAt())
                 .estimatedWaitSeconds(event.getEstimatedWaitSeconds())
                 .build());
 
@@ -51,12 +51,12 @@ public class AnalyticsService {
 
         switch (event.getEventType()) {
             case "TOKEN_CALLED":
-                snapshot.setCalledAt(event.getTimestamp());
+                snapshot.setCalledAt(event.getOccurredAt());
                 break;
             case "TOKEN_COMPLETED":
-                snapshot.setCompletedAt(event.getTimestamp());
-                if (snapshot.getBookedAt() != null && event.getTimestamp() != null) {
-                    long actualWait = java.time.Duration.between(snapshot.getBookedAt(), event.getTimestamp()).getSeconds();
+                snapshot.setCompletedAt(event.getOccurredAt());
+                if (snapshot.getBookedAt() != null && event.getOccurredAt() != null) {
+                    long actualWait = java.time.Duration.between(snapshot.getBookedAt(), event.getOccurredAt()).getSeconds();
                     snapshot.setActualWaitSeconds((int) actualWait);
                 }
                 break;

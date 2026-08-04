@@ -1,5 +1,6 @@
 package com.smartqueue.notification.entity;
 
+import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EntityListeners;
 import jakarta.persistence.GeneratedValue;
@@ -34,6 +35,10 @@ public class NotificationEntity {
     private String recipient;
 
     private String subject;
+
+    /** Full message body — stored so RetryScheduler can re-send actual content, not a placeholder. */
+    @Column(columnDefinition = "TEXT")
+    private String body;
 
     private String templateName;
 

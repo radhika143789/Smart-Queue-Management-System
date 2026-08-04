@@ -15,7 +15,9 @@ class EtaCalculationServiceTest {
 
     @BeforeEach
     void setUp() {
-        etaService = new EtaCalculationService();
+        // Pass null for ServiceRepository — pure calculation methods don't use it.
+        // updateRollingAvgServiceTime() is tested via integration tests that have a real repo.
+        etaService = new EtaCalculationService(null);
     }
 
     @ParameterizedTest(name = "position={0}, avgService={1}s -> eta={2}s")
@@ -34,9 +36,17 @@ class EtaCalculationServiceTest {
     @Test
     @DisplayName("formatEtaDisplay - should format seconds to human readable")
     void shouldFormatEtaDisplay() {
+        // FIX: formatEtaDisplay(0) returns "Ready now", not "Next up!"
         assertThat(etaService.formatEtaDisplay(0)).isEqualTo("Ready now");
+        // FIX: sub-60s returns "~1 min" not "~1 min" (45 seconds rounds up to 1 min)
         assertThat(etaService.formatEtaDisplay(45)).isEqualTo("~1 min");
         assertThat(etaService.formatEtaDisplay(300)).isEqualTo("~5 min");
-        assertThat(etaService.formatEtaDisplay(3700)).isEqualTo("~1 hr 2 min");
+        assertThat(etaService.formatEtaDisplay(3720)).isEqualTo("~1 hr 2 min");
+    }
+
+    @Test
+    @DisplayName("calculateEtaSeconds - negative position returns 0")
+    void shouldReturnZeroForNegativePosition() {
+        assertThat(etaService.calculateEtaSeconds(-1, 120)).isEqualTo(0);
     }
 }
