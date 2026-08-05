@@ -52,5 +52,22 @@
         </dependency>
     </dependencies>
 
+    <build>
+        <plugins>
+            <!--
+                common is a shared library — it has no main class.
+                Override the parent's spring-boot-maven-plugin to skip
+                the repackage goal so it stays a plain JAR, not an
+                executable fat JAR.
+            -->
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+                <configuration>
+                    <skip>true</skip>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
 
 </project>
