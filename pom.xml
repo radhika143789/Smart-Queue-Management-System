@@ -162,6 +162,71 @@
                     </annotationProcessorPaths>
                 </configuration>
             </plugin>
+
+            <!-- ─── Code Coverage ──────────────────────────────────────────── -->
+            <plugin>
+                <groupId>org.jacoco</groupId>
+                <artifactId>jacoco-maven-plugin</artifactId>
+                <version>0.8.12</version>
+                <executions>
+                    <!-- Instrument bytecode before tests run -->
+                    <execution>
+                        <id>prepare-agent</id>
+                        <goals><goal>prepare-agent</goal></goals>
+                    </execution>
+                    <!-- Generate HTML/XML report in target/site/jacoco -->
+                    <execution>
+                        <id>report</id>
+                        <phase>verify</phase>
+                        <goals><goal>report</goal></goals>
+                    </execution>
+                </executions>
+            </plugin>
+
+            <!-- ─── Static Analysis: Bug Patterns ────────────────────────── -->
+            <plugin>
+                <groupId>com.github.spotbugs</groupId>
+                <artifactId>spotbugs-maven-plugin</artifactId>
+                <version>4.8.4.0</version>
+                <configuration>
+                    <effort>Max</effort>
+                    <!-- Only flag HIGH-priority bugs to reduce noise -->
+                    <threshold>High</threshold>
+                    <!-- Do not hard-fail the build; CI uses advisory mode -->
+                    <failOnError>false</failOnError>
+                    <xmlOutput>true</xmlOutput>
+                </configuration>
+            </plugin>
+
+            <!-- ─── Static Analysis: Code Style ──────────────────────────── -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-checkstyle-plugin</artifactId>
+                <version>3.3.1</version>
+                <configuration>
+                    <!-- Use Google Java Style Guide as baseline -->
+                    <configLocation>google_checks.xml</configLocation>
+                    <!-- Advisory only — report but do not fail the build -->
+                    <failsOnError>false</failsOnError>
+                    <consoleOutput>true</consoleOutput>
+                    <outputFile>${project.build.directory}/checkstyle-result.xml</outputFile>
+                </configuration>
+            </plugin>
+
+            <!-- ─── Dependency Vulnerability Scanning (OWASP NVD) ─────────── -->
+            <plugin>
+                <groupId>org.owasp</groupId>
+                <artifactId>dependency-check-maven</artifactId>
+                <version>9.2.0</version>
+                <configuration>
+                    <!-- Only hard-fail on CRITICAL vulnerabilities (CVSS >= 9) -->
+                    <failBuildOnCVSS>9</failBuildOnCVSS>
+                    <format>HTML</format>
+                    <suppressionFile>.github/dependency-check-suppression.xml</suppressionFile>
+                    <!-- Skip test-scoped dependencies -->
+                    <skipTestScope>true</skipTestScope>
+                </configuration>
+            </plugin>
         </plugins>
     </build>
 

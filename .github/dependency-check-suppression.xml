@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  OWASP Dependency-Check Suppression File
+  =========================================
+  Use this file to suppress known false-positives or accepted risks.
+
+  How to add a suppression:
+  1. Run `mvn dependency-check:check` locally.
+  2. Open target/dependency-check-report.html and find the CVE.
+  3. Add a <suppress> block below with a clear justification.
+
+  Full schema reference:
+  https://jeremylong.github.io/DependencyCheck/general/suppression.html
+-->
+<suppressions xmlns="https://jeremylong.github.io/DependencyCheck/dependency-suppression.1.3.xsd">
+
+  <!--
+    Example suppression (remove the comment tags and fill in the real values):
+
+    <suppress>
+      <notes>
+        CVE-YYYY-XXXXX: False positive — this CVE applies to the C library,
+        not the Java wrapper. Accepted risk, reviewed on YYYY-MM-DD.
+      </notes>
+      <gav regex="true">^groupId:artifactId:.*$</gav>
+      <cve>CVE-YYYY-XXXXX</cve>
+    </suppress>
+  -->
+
+</suppressions>

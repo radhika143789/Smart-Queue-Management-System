@@ -57,6 +57,7 @@ cmd_up() {
   check_docker
   docker compose -f "$COMPOSE_FILE" up -d
   log_success "All services starting. Dashboards:"
+  echo "  Frontend     → http://localhost:3001"
   echo "  API Gateway  → http://localhost:8080"
   echo "  Auth Service → http://localhost:8081/swagger-ui.html"
   echo "  Queue Service→ http://localhost:8082/swagger-ui.html"
@@ -121,6 +122,7 @@ cmd_build() {
 cmd_health() {
   log_info "Checking service health..."
   services=(
+    "Frontend:3001"
     "Gateway:8080"
     "Auth:8081"
     "Queue:8082"
@@ -131,10 +133,12 @@ cmd_health() {
   for entry in "${services[@]}"; do
     name="${entry%%:*}"
     port="${entry##*:}"
-    if curl -sf "http://localhost:$port/actuator/health" > /dev/null 2>&1; then
-      log_success "$name Service (:$port) — UP"
+    if curl -sf "http://localhost:$port/actuator/health" > /dev/null 2>&1 || \
+       curl -sf "http://localhost:$port/health" > /dev/null 2>&1 || \
+       curl -sf "http://localhost:$port/" > /dev/null 2>&1; then
+      log_success "$name (:$port) — UP"
     else
-      log_error "$name Service (:$port) — DOWN or unreachable"
+      log_error "$name (:$port) — DOWN or unreachable"
     fi
   done
 }
