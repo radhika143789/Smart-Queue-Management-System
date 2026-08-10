@@ -11,7 +11,7 @@ RUN mvn package -pl common,queue-service -am -DskipTests -q
 FROM eclipse-temurin:17-jre-alpine
 WORKDIR /app
 RUN addgroup -S smartqueue && adduser -S smartqueue -G smartqueue
-COPY --from=builder /app/queue-service/target/*.jar app.jar
+COPY --from=builder /app/queue-service/target/queue-service-1.0.0.jar app.jar
 RUN chown smartqueue:smartqueue app.jar
 USER smartqueue
 EXPOSE 8082

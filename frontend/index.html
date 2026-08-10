@@ -3,17 +3,638 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>SmartQueue — Virtual Queue Management</title>
-  <meta name="description" content="Smart Queue Management System — Book tokens, track your position in real-time, and manage queues for hospitals, banks, and government offices." />
+  <title>SmartQueue — Intelligent Virtual Queue Management</title>
+  <meta name="description" content="Smart Queue Management System — Book tokens, track position in real-time, and manage queues for hospitals, banks, and government offices." />
+  <meta name="theme-color" content="#0a0b14" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;700&family=Outfit:wght@700;800;900&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-  <div id="app">
-    <!-- Rendered by app.js -->
+
+  <!-- Ambient particle canvas -->
+  <canvas id="particles-canvas"></canvas>
+
+  <!-- Toast container -->
+  <div id="toast-container" class="toast-container"></div>
+
+  <!-- Loading overlay -->
+  <div id="global-loader" class="global-loader hidden">
+    <div class="loader-ring"></div>
+    <p class="loader-text">Loading…</p>
   </div>
+
+  <!-- ══════════════════════════════════════════
+       LANDING PAGE
+  ══════════════════════════════════════════ -->
+  <div id="landing" class="landing-page">
+    <nav class="topnav" id="landing-nav">
+      <div class="topnav-brand">
+        <div class="logo-icon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+            <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </div>
+        <span class="brand-name">SmartQueue</span>
+      </div>
+      <div class="topnav-actions">
+        <span class="live-dot" id="landing-live">Live System</span>
+        <span class="version-chip">v1.0</span>
+      </div>
+    </nav>
+
+    <!-- Hero -->
+    <section class="hero" id="hero-section">
+      <div class="hero-eyebrow">
+        <span class="eyebrow-dot"></span>
+        🏥 Hospitals · 🏦 Banks · 🏛️ Government · 🏢 Enterprises
+      </div>
+      <h1 class="hero-title">
+        Skip the Wait.<br/>
+        <span class="gradient-text">Not the Service.</span>
+      </h1>
+      <p class="hero-sub">
+        Book your virtual token from anywhere, track your live position in real-time,
+        and arrive exactly when it's your turn — no queues, no stress.
+      </p>
+      <div class="hero-ctas">
+        <button class="btn btn-primary btn-lg btn-glow" onclick="openPortal('customer')" id="cta-customer">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z" fill="currentColor"/></svg>
+          Book My Token
+        </button>
+        <button class="btn btn-ghost btn-lg" onclick="openPortal('staff')" id="cta-staff">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><rect x="2" y="3" width="20" height="14" rx="2" stroke="currentColor" stroke-width="2"/><path d="M8 21h8M12 17v4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+          Staff Login
+        </button>
+      </div>
+
+      <!-- Live stats strip -->
+      <div class="hero-stats">
+        <div class="hero-stat">
+          <span class="hero-stat-val" id="hs-queues">12</span>
+          <span class="hero-stat-lbl">Active Queues</span>
+        </div>
+        <div class="hero-stat-divider"></div>
+        <div class="hero-stat">
+          <span class="hero-stat-val" id="hs-served">1,247</span>
+          <span class="hero-stat-lbl">Served Today</span>
+        </div>
+        <div class="hero-stat-divider"></div>
+        <div class="hero-stat">
+          <span class="hero-stat-val" id="hs-wait">8 min</span>
+          <span class="hero-stat-lbl">Avg Wait Time</span>
+        </div>
+        <div class="hero-stat-divider"></div>
+        <div class="hero-stat">
+          <span class="hero-stat-val" id="hs-uptime">99.9%</span>
+          <span class="hero-stat-lbl">Uptime</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Portal Cards -->
+    <section class="portal-grid-section">
+      <div class="portal-grid">
+
+        <div class="portal-card customer" onclick="openPortal('customer')" id="card-customer" tabindex="0">
+          <div class="portal-card-glow"></div>
+          <div class="portal-icon customer-icon">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="8" r="4" stroke="currentColor" stroke-width="2"/><path d="M4 20c0-4 3.58-7 8-7s8 3 8 7" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+          </div>
+          <h3>Customer Portal</h3>
+          <p>Book tokens for any service, track your live position, and receive instant notifications when your turn arrives.</p>
+          <ul class="portal-features">
+            <li class="feature-item">Real-time queue position &amp; ETA</li>
+            <li class="feature-item">Book from home, arrive on time</li>
+            <li class="feature-item">SMS + Email push notifications</li>
+            <li class="feature-item">Cancel or reschedule anytime</li>
+          </ul>
+          <button class="portal-enter-btn" id="enter-customer">Enter Portal →</button>
+        </div>
+
+        <div class="portal-card staff" onclick="openPortal('staff')" id="card-staff" tabindex="0">
+          <div class="portal-card-glow"></div>
+          <div class="portal-icon staff-icon">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none"><rect x="2" y="3" width="20" height="14" rx="2" stroke="currentColor" stroke-width="2"/><path d="M8 21h8M12 17v4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+          </div>
+          <h3>Staff Counter</h3>
+          <p>Manage your counter, call the next customer, mark outcomes and control your service queue in real-time.</p>
+          <ul class="portal-features">
+            <li class="feature-item">Call next customer — one click</li>
+            <li class="feature-item">Mark complete, skip, or no-show</li>
+            <li class="feature-item">See full live queue at a glance</li>
+            <li class="feature-item">Live wait count &amp; ETA display</li>
+          </ul>
+          <button class="portal-enter-btn" id="enter-staff">Enter Portal →</button>
+        </div>
+
+        <div class="portal-card admin" onclick="openPortal('admin')" id="card-admin" tabindex="0">
+          <div class="portal-card-glow"></div>
+          <div class="portal-icon admin-icon">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="2"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+          </div>
+          <h3>Admin Dashboard</h3>
+          <p>Manage all services, view analytics, configure counters, and monitor the entire queue ecosystem.</p>
+          <ul class="portal-features">
+            <li class="feature-item">Create &amp; manage service queues</li>
+            <li class="feature-item">Analytics: peak hours &amp; throughput</li>
+            <li class="feature-item">Pause / resume any service</li>
+            <li class="feature-item">Full audit trail &amp; reports</li>
+          </ul>
+          <button class="portal-enter-btn" id="enter-admin">Enter Portal →</button>
+        </div>
+
+      </div>
+    </section>
+
+    <footer class="landing-footer">
+      <p>SmartQueue v1.0 &nbsp;·&nbsp; Spring Boot Microservices &nbsp;·&nbsp; Apache Kafka &nbsp;·&nbsp; Redis &nbsp;·&nbsp; PostgreSQL</p>
+    </footer>
+  </div>
+
+  <!-- ══════════════════════════════════════════
+       AUTH MODAL
+  ══════════════════════════════════════════ -->
+  <div id="auth-modal" class="modal-backdrop hidden">
+    <div class="modal" id="auth-modal-box" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+      <button class="modal-close-btn" onclick="closeAuthModal()" aria-label="Close">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/></svg>
+      </button>
+
+      <div class="modal-portal-badge" id="modal-portal-badge">Customer</div>
+      <h2 class="modal-title" id="modal-title">Welcome Back</h2>
+      <p class="modal-sub" id="modal-sub">Sign in to continue to SmartQueue</p>
+
+      <div class="modal-tabs" role="tablist">
+        <button class="modal-tab active" id="tab-login" onclick="switchAuthTab('login')" role="tab" aria-selected="true">Sign In</button>
+        <button class="modal-tab" id="tab-register" onclick="switchAuthTab('register')" role="tab" aria-selected="false">Register</button>
+      </div>
+
+      <!-- Login Form -->
+      <form id="login-form" onsubmit="handleLogin(event)" autocomplete="on" novalidate>
+        <div class="form-group">
+          <label class="form-label" for="login-email">Email Address</label>
+          <div class="input-wrapper">
+            <svg class="input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z" fill="currentColor"/></svg>
+            <input id="login-email" class="form-input" type="email" placeholder="you@example.com" autocomplete="email" required />
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="login-password">Password</label>
+          <div class="input-wrapper">
+            <svg class="input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none"><rect x="3" y="11" width="18" height="11" rx="2" stroke="currentColor" stroke-width="2"/><path d="M7 11V7a5 5 0 0110 0v4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+            <input id="login-password" class="form-input" type="password" placeholder="••••••••" autocomplete="current-password" required />
+            <button type="button" class="input-eye" onclick="togglePasswordVisibility('login-password')" aria-label="Toggle password">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="2"/></svg>
+            </button>
+          </div>
+        </div>
+        <div id="login-error" class="form-error-msg hidden"></div>
+        <button type="submit" class="btn btn-primary btn-full btn-glow" id="login-btn">
+          <span class="btn-text">Sign In</span>
+          <span class="btn-spinner hidden"></span>
+        </button>
+      </form>
+
+      <!-- Register Form -->
+      <form id="register-form" class="hidden" onsubmit="handleRegister(event)" autocomplete="on" novalidate>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label" for="reg-first">First Name</label>
+            <div class="input-wrapper">
+              <input id="reg-first" class="form-input" type="text" placeholder="John" autocomplete="given-name" required />
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="reg-last">Last Name</label>
+            <div class="input-wrapper">
+              <input id="reg-last" class="form-input" type="text" placeholder="Doe" autocomplete="family-name" required />
+            </div>
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="reg-email">Email Address</label>
+          <div class="input-wrapper">
+            <svg class="input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z" fill="currentColor"/></svg>
+            <input id="reg-email" class="form-input" type="email" placeholder="you@example.com" autocomplete="email" required />
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="reg-phone">Phone (optional)</label>
+          <div class="input-wrapper">
+            <input id="reg-phone" class="form-input" type="tel" placeholder="+91 98765 43210" autocomplete="tel" />
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="reg-password">Create Password</label>
+          <div class="input-wrapper">
+            <svg class="input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none"><rect x="3" y="11" width="18" height="11" rx="2" stroke="currentColor" stroke-width="2"/><path d="M7 11V7a5 5 0 0110 0v4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+            <input id="reg-password" class="form-input" type="password" placeholder="Min 8 characters" autocomplete="new-password" required />
+            <button type="button" class="input-eye" onclick="togglePasswordVisibility('reg-password')" aria-label="Toggle password">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="2"/></svg>
+            </button>
+          </div>
+          <div class="password-strength" id="pw-strength">
+            <div class="strength-bar"><div id="strength-fill"></div></div>
+            <span id="strength-label" class="strength-label"></span>
+          </div>
+        </div>
+        <div id="register-error" class="form-error-msg hidden"></div>
+        <button type="submit" class="btn btn-primary btn-full btn-glow" id="register-btn">
+          <span class="btn-text">Create Account</span>
+          <span class="btn-spinner hidden"></span>
+        </button>
+      </form>
+
+      <p class="modal-footer-note">
+        By continuing, you agree to SmartQueue's <a href="#" class="link">Terms of Service</a>
+      </p>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════
+       APP SHELL (after login)
+  ══════════════════════════════════════════ -->
+  <div id="app-shell" class="app-shell hidden">
+
+    <!-- Topnav -->
+    <header class="topnav" id="app-topnav">
+      <div class="topnav-brand">
+        <div class="logo-icon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+            <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </div>
+        <span class="brand-name">SmartQueue</span>
+      </div>
+      <div class="topnav-center">
+        <span class="live-dot" id="app-live-dot">Live</span>
+        <span class="topnav-service" id="topnav-service-name"></span>
+      </div>
+      <div class="topnav-actions">
+        <span class="portal-badge" id="portal-badge"></span>
+        <div class="user-avatar-wrap" onclick="toggleUserMenu()" id="user-avatar-btn" aria-haspopup="true" role="button" tabindex="0">
+          <div class="user-avatar" id="user-avatar-initials"></div>
+          <svg class="avatar-chevron" width="12" height="12" viewBox="0 0 24 24" fill="none"><path d="M6 9l6 6 6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        </div>
+        <div class="user-menu hidden" id="user-menu">
+          <div class="user-menu-header">
+            <div class="um-name" id="um-name"></div>
+            <div class="um-email" id="um-email"></div>
+          </div>
+          <div class="user-menu-divider"></div>
+          <button class="user-menu-item" onclick="handleLogout()">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            Sign Out
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <!-- Sidebar -->
+    <aside class="sidebar" id="sidebar" role="navigation" aria-label="Main navigation">
+      <div id="sidebar-nav"></div>
+    </aside>
+
+    <!-- Main Content Area -->
+    <main class="main-content" id="main-content" role="main">
+
+      <!-- ── CUSTOMER PAGES ────────────────── -->
+
+      <!-- Services -->
+      <div class="page" id="page-services">
+        <div class="section-header">
+          <div>
+            <h2 class="section-title">Choose a Service</h2>
+            <p class="section-sub">Select a service to book your virtual token</p>
+          </div>
+          <div class="search-box">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><circle cx="11" cy="11" r="8" stroke="currentColor" stroke-width="2"/><path d="M21 21l-4.35-4.35" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+            <input type="text" id="service-search" placeholder="Search services…" oninput="filterServices(this.value)" />
+          </div>
+        </div>
+        <div class="filter-chips" id="service-filter-chips">
+          <button class="filter-chip active" onclick="filterByCategory('all', this)">All</button>
+          <button class="filter-chip" onclick="filterByCategory('HOSPITAL', this)">🏥 Hospital</button>
+          <button class="filter-chip" onclick="filterByCategory('BANK', this)">🏦 Bank</button>
+          <button class="filter-chip" onclick="filterByCategory('GOVERNMENT', this)">🏛️ Government</button>
+        </div>
+        <div class="service-grid" id="service-grid">
+          <div class="skeleton-grid">
+            <div class="skeleton-card"></div>
+            <div class="skeleton-card"></div>
+            <div class="skeleton-card"></div>
+            <div class="skeleton-card"></div>
+            <div class="skeleton-card"></div>
+            <div class="skeleton-card"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- My Queue -->
+      <div class="page" id="page-my-queue">
+        <div class="section-header">
+          <div>
+            <h2 class="section-title">My Queue Status</h2>
+            <p class="section-sub">Real-time position tracking</p>
+          </div>
+          <span class="live-dot" id="queue-live-badge">Live</span>
+        </div>
+        <div id="my-queue-content">
+          <!-- populated by JS -->
+        </div>
+      </div>
+
+      <!-- History -->
+      <div class="page" id="page-history">
+        <div class="section-header">
+          <div>
+            <h2 class="section-title">Queue History</h2>
+            <p class="section-sub">Your past service visits</p>
+          </div>
+          <button class="btn btn-ghost btn-sm" onclick="loadHistory()">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M23 4v6h-6M1 20v-6h6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            Refresh
+          </button>
+        </div>
+        <div class="card">
+          <div class="table-wrap">
+            <table id="history-table">
+              <thead>
+                <tr>
+                  <th>Token</th>
+                  <th>Service</th>
+                  <th>Date &amp; Time</th>
+                  <th>Wait Time</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody id="history-tbody">
+                <tr><td colspan="5" class="td-loading"><div class="spinner"></div></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── STAFF PAGES ────────────────── -->
+
+      <!-- Counter -->
+      <div class="page" id="page-counter">
+        <div class="section-header">
+          <div>
+            <h2 class="section-title">Counter Management</h2>
+            <p class="section-sub">Call and manage tokens at your counter</p>
+          </div>
+          <div id="staff-service-selector">
+            <select class="form-input" id="staff-service-select" onchange="staffSelectService(this.value)" style="width:200px">
+              <option value="">Select service…</option>
+            </select>
+          </div>
+        </div>
+        <div class="counter-grid" id="counter-grid">
+          <div class="counter-display" id="counter-display">
+            <div class="counter-serving-label">Now Serving</div>
+            <div class="counter-serving-token" id="counter-token">—</div>
+            <div class="counter-customer-name" id="counter-customer">Waiting for action</div>
+            <div class="counter-actions" id="counter-actions">
+              <button class="btn btn-success btn-lg" onclick="callNextToken()" id="btn-call-next">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M5 12h14M12 5l7 7-7 7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                Call Next
+              </button>
+              <button class="btn btn-warn btn-lg hidden" onclick="markServed()" id="btn-served">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M20 6L9 17l-5-5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                Mark Served
+              </button>
+              <button class="btn btn-ghost btn-lg hidden" onclick="markNoShow()" id="btn-noshow">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/><path d="M15 9l-6 6M9 9l6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+                No Show
+              </button>
+            </div>
+          </div>
+          <div class="card" id="staff-queue-panel">
+            <div class="card-hdr">
+              <div>
+                <div class="card-title">Upcoming Queue</div>
+                <div class="card-sub" id="staff-queue-count">— waiting</div>
+              </div>
+              <span class="live-dot" id="staff-live">Live</span>
+            </div>
+            <div class="queue-list" id="staff-queue-list">
+              <div class="empty-state">
+                <div class="empty-icon">📭</div>
+                <div class="empty-title">No queue selected</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── ADMIN PAGES ────────────────── -->
+
+      <!-- Admin Overview -->
+      <div class="page" id="page-overview">
+        <div class="section-header">
+          <div>
+            <h2 class="section-title">System Overview</h2>
+            <p class="section-sub">Real-time platform metrics</p>
+          </div>
+          <span class="live-dot">Live Dashboard</span>
+        </div>
+
+        <div class="stat-grid" id="admin-stat-grid">
+          <div class="stat-card brand">
+            <div class="stat-icon-wrap brand-stat">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="9" cy="7" r="4" stroke="currentColor" stroke-width="2"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+            </div>
+            <div class="stat-label">Total Customers Today</div>
+            <div class="stat-value" id="stat-customers">—</div>
+            <div class="stat-change" id="stat-customers-change">Loading…</div>
+          </div>
+          <div class="stat-card green">
+            <div class="stat-icon-wrap green-stat">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M20 6L9 17l-5-5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </div>
+            <div class="stat-label">Tokens Served</div>
+            <div class="stat-value" id="stat-served">—</div>
+            <div class="stat-change" id="stat-served-change">Loading…</div>
+          </div>
+          <div class="stat-card warn">
+            <div class="stat-icon-wrap warn-stat">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/><path d="M12 6v6l4 2" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+            </div>
+            <div class="stat-label">Avg Wait Time</div>
+            <div class="stat-value" id="stat-wait">—</div>
+            <div class="stat-change" id="stat-wait-change">Loading…</div>
+          </div>
+          <div class="stat-card purple">
+            <div class="stat-icon-wrap purple-stat">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><rect x="2" y="3" width="20" height="14" rx="2" stroke="currentColor" stroke-width="2"/><path d="M8 21h8M12 17v4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+            </div>
+            <div class="stat-label">Active Services</div>
+            <div class="stat-value" id="stat-services">—</div>
+            <div class="stat-change" id="stat-services-change">Loading…</div>
+          </div>
+        </div>
+
+        <div class="two-col-grid">
+          <!-- Throughput bar chart -->
+          <div class="card">
+            <div class="card-hdr">
+              <div>
+                <div class="card-title">Hourly Throughput</div>
+                <div class="card-sub">Tokens served per hour today</div>
+              </div>
+            </div>
+            <div class="chart-bar-group" id="throughput-chart"></div>
+          </div>
+
+          <!-- Services table -->
+          <div class="card">
+            <div class="card-hdr">
+              <div>
+                <div class="card-title">Active Services</div>
+                <div class="card-sub">Queue status across all services</div>
+              </div>
+              <button class="btn btn-ghost btn-sm" onclick="showPage('page-services-admin')">View All</button>
+            </div>
+            <div class="queue-list" id="overview-services-list"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Admin: Manage Services -->
+      <div class="page" id="page-services-admin">
+        <div class="section-header">
+          <div>
+            <h2 class="section-title">Manage Services</h2>
+            <p class="section-sub">Create, configure, and control service queues</p>
+          </div>
+          <button class="btn btn-primary btn-glow" onclick="openCreateServiceModal()" id="btn-create-service">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/></svg>
+            New Service
+          </button>
+        </div>
+        <div class="card">
+          <div class="table-wrap">
+            <table id="admin-services-table">
+              <thead>
+                <tr>
+                  <th>Service Name</th>
+                  <th>Location</th>
+                  <th>Waiting</th>
+                  <th>Served Today</th>
+                  <th>Avg Wait</th>
+                  <th>Status</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="admin-services-tbody">
+                <tr><td colspan="7" class="td-loading"><div class="spinner"></div></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- Admin: Analytics -->
+      <div class="page" id="page-analytics">
+        <div class="section-header">
+          <div>
+            <h2 class="section-title">Analytics</h2>
+            <p class="section-sub">Peak hours, throughput, and service performance</p>
+          </div>
+          <div class="date-range-selector">
+            <button class="filter-chip active" onclick="setAnalyticsRange('today', this)">Today</button>
+            <button class="filter-chip" onclick="setAnalyticsRange('week', this)">This Week</button>
+            <button class="filter-chip" onclick="setAnalyticsRange('month', this)">This Month</button>
+          </div>
+        </div>
+
+        <div class="stat-grid" id="analytics-stat-grid">
+          <div class="stat-card brand">
+            <div class="stat-label">Total Tokens Issued</div>
+            <div class="stat-value" id="an-issued">—</div>
+          </div>
+          <div class="stat-card green">
+            <div class="stat-label">Completion Rate</div>
+            <div class="stat-value" id="an-rate">—</div>
+          </div>
+          <div class="stat-card warn">
+            <div class="stat-label">No-Show Rate</div>
+            <div class="stat-value" id="an-noshow">—</div>
+          </div>
+          <div class="stat-card danger">
+            <div class="stat-label">Peak Hour</div>
+            <div class="stat-value" id="an-peak">—</div>
+          </div>
+        </div>
+
+        <div class="two-col-grid">
+          <div class="card">
+            <div class="card-hdr">
+              <div class="card-title">Traffic by Hour</div>
+            </div>
+            <div class="heatmap-grid" id="heatmap-grid"></div>
+          </div>
+          <div class="card">
+            <div class="card-hdr">
+              <div class="card-title">Top Services by Volume</div>
+            </div>
+            <div class="chart-bar-group" id="top-services-chart"></div>
+          </div>
+        </div>
+      </div>
+
+    </main>
+  </div>
+
+  <!-- ── Create Service Modal ── -->
+  <div id="create-service-modal" class="modal-backdrop hidden">
+    <div class="modal modal-wide" role="dialog" aria-modal="true" aria-labelledby="create-service-title">
+      <button class="modal-close-btn" onclick="closeCreateServiceModal()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/></svg>
+      </button>
+      <h2 class="modal-title" id="create-service-title">Create New Service</h2>
+      <p class="modal-sub">Configure a new queue service for your organization</p>
+      <form id="create-service-form" onsubmit="handleCreateService(event)" novalidate>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label" for="svc-name">Service Name *</label>
+            <input id="svc-name" class="form-input" type="text" placeholder="e.g. OPD Registration" required />
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="svc-location">Location *</label>
+            <input id="svc-location" class="form-input" type="text" placeholder="e.g. Block A, Floor 2" required />
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label" for="svc-prefix">Token Prefix</label>
+            <input id="svc-prefix" class="form-input" type="text" placeholder="A" maxlength="3" />
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="svc-avg-time">Avg Service Time (min)</label>
+            <input id="svc-avg-time" class="form-input" type="number" placeholder="5" min="1" max="120" />
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="svc-desc">Description</label>
+          <textarea id="svc-desc" class="form-input form-textarea" placeholder="Briefly describe this service…" rows="2"></textarea>
+        </div>
+        <div id="create-service-error" class="form-error-msg hidden"></div>
+        <div style="display:flex;gap:12px;margin-top:8px">
+          <button type="button" class="btn btn-ghost btn-full" onclick="closeCreateServiceModal()">Cancel</button>
+          <button type="submit" class="btn btn-primary btn-full btn-glow" id="create-service-btn">
+            <span class="btn-text">Create Service</span>
+            <span class="btn-spinner hidden"></span>
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <script src="app.js"></script>
 </body>
 </html>

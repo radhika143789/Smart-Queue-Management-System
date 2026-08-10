@@ -11,7 +11,7 @@ RUN mvn package -pl common,analytics-service -am -DskipTests -q
 FROM eclipse-temurin:17-jre-alpine
 WORKDIR /app
 RUN addgroup -S smartqueue && adduser -S smartqueue -G smartqueue
-COPY --from=builder /app/analytics-service/target/*.jar app.jar
+COPY --from=builder /app/analytics-service/target/analytics-service-1.0.0.jar app.jar
 RUN chown smartqueue:smartqueue app.jar
 USER smartqueue
 EXPOSE 8084

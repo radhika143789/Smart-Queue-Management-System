@@ -77,13 +77,13 @@ jobs:
             --no-transfer-progress \
             --batch-mode \
             -Dtest="**/*Test" \
-            -DexcludeTests="**/*IntegrationTest" \
+            -Dexcludes="**/*IntegrationTest.java" \
             -Dsurefire.failIfNoSpecifiedTests=false
         env:
           SPRING_PROFILES_ACTIVE: test
 
       - name: Publish Unit Test Results
-        uses: EnricoMi/publish-unit-test-result-action@v3
+        uses: EnricoMi/publish-unit-test-result-action@v2
         if: always()
         with:
           files: '**/target/surefire-reports/TEST-*.xml'
@@ -113,7 +113,7 @@ jobs:
             --no-transfer-progress \
             --batch-mode \
             -Dtest="**/*Test" \
-            -DexcludeTests="**/*IntegrationTest" \
+            -Dexcludes="**/*IntegrationTest.java" \
             -Dsurefire.failIfNoSpecifiedTests=false
         env:
           SPRING_PROFILES_ACTIVE: test
@@ -160,7 +160,7 @@ jobs:
           DOCKER_HOST: unix:///var/run/docker.sock
 
       - name: Publish Integration Test Results
-        uses: EnricoMi/publish-unit-test-result-action@v3
+        uses: EnricoMi/publish-unit-test-result-action@v2
         if: always()
         with:
           files: '**/target/surefire-reports/TEST-*.xml'
@@ -426,7 +426,7 @@ jobs:
             type=raw,value=latest
 
       - name: Build and push Docker image
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v6
         with:
           context: ./${{ matrix.service }}
           push: true
